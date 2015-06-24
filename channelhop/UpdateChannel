@@ -7,6 +7,7 @@ import re
 import requests
 import time
 import sys
+import socket
 from datetime import datetime
 
 # command argument sequence is
@@ -19,7 +20,8 @@ host = "192.168.0.1"
 
 def printHelp():
     print("Usage:\nUpdateChannel [interval in seconds] [begin channel] [end channel] [AP's ip]")
-    print("If you do not define arguments, the default values of arguments are used")
+    print("If you do not set arguments, the predefined arguments would be used.")
+    print("\nAuthor: Dong Han    Email: minicpp@gmail.com    Date: 06/23/2015")
 
 def printArgs():
     print("[Running] in these arguments:")
@@ -31,50 +33,67 @@ def getNow():
     return datetime.strftime(datetime.now(),'%Y-%m-%d %H:%M:%S')
 
 def getInterval():
+    num = -1
     if sys.argv[1].isdigit():
-        return int(sys.argv[1])
-    print '[Error:] The argument "%s" is not a valid number for interval.' % sys.argv[1]
+        num = int(sys.argv[1])
+        if 1 <= num <= 3600:
+            return num
+        else:
+            print '[Error:] The argument "%s" is not in interval [1, 3600].' % sys.argv[1]
+    else:
+        print '[Error:] The argument "%s" is not a valid number for interval.' % sys.argv[1]
     printHelp()
     sys.exit()
 
 def getChannel(str):
+    num = -1
     if str.isdigit():
-        return int(str)
-    print '[Error:] The argument "%s" is not a valid number for channel.' % str
+        num = int(str)
+        if 1 <= num <= 11:
+            return num
+        else:
+            print '[Error:] The channel "%s" is not in interval [1, 11].' % str
+    else:
+        print '[Error:] The argument "%s" is not a valid number for channel.' % str
     printHelp()
     sys.exit()
 
+def getIP(address):
+    try:
+        socket.inet_aton(address)
+    except socket.error:
+        print '[Error:] The AP\'s IP %s is not valid' % address
+        printHelp()
+        sys.exit()
+    return address
+
 numOfArg = len(sys.argv)
-if numOfArg == 2:
+if numOfArg >= 2:
     intervalInSeconds = getInterval()
-elif numOfArg == 3:
-    intervalInSeconds = getInterval()
+
+if numOfArg >= 3:
     channelBegin = getChannel(sys.argv[2])
     if channelBegin > channelEnd:
         print '[Error:] The begin channel %d is greater than end channel %d.' % (channelBegin, channelEnd)
         printHelp()
         sys.exit()
-elif numOfArg == 4:
-    intervalInSeconds = getInterval()
-    channelBegin = getChannel(sys.argv[2])
+
+if numOfArg >= 4:
     channelEnd = getChannel(sys.argv[3])
-    if channelBegin > channelEnd:
-        print '[Error:] The begin channel %d is greater than end channel %d.' % (channelBegin, channelEnd)
-        printHelp()
-        sys.exit()
-elif numOfArg == 5:
-    intervalInSeconds = getInterval()
-    channelBegin = getChannel(sys.argv[2])
-    channelEnd = getChannel(sys.argv[3])
-    if channelBegin > channelEnd:
-        print '[Error:] The begin channel %d is greater than end channel %d.' % (channelBegin, channelEnd)
-        printHelp()
-        sys.exit()
-    host = sys.argv[4]
-elif numOfArg > 5:
+
+if channelBegin > channelEnd:
+    print '[Error:] The begin channel %d is greater than end channel %d.' % (channelBegin, channelEnd)
+    printHelp()
+    sys.exit()
+
+if numOfArg >= 5:
+    host = getIP(sys.argv[4])
+
+if numOfArg > 6:
     print '[Error:] Too many arguments'
     printHelp()
     sys.exit()
+
 printArgs()
 
 
@@ -88,48 +107,51 @@ reqURLTemplate = 'http://'+host+'/userRpm/WlanNetworkRpm.htm?' \
 headers = {'Referer': 'http://'+host+'/userRpm/WlanNetworkRpm.htm'}
 
 
+count = 0
+try:
+    while True:
+        count = count + 1
+        print '--------------------------- [Count: %d] -----------------------------------' % count
+        print '[%s] Ping %s to confirm the AP is accessible' %\
+              (getNow(), host)
+        ping = subprocess.Popen(
+            ["ping",host],
+            stdout = subprocess.PIPE,
+            stderr =subprocess.PIPE
+        )
+        out, error = ping.communicate()
 
+        print out
+        print '[%s] End ping' % getNow()
 
-while True:
-    print '--------------------------------------------------------------------------------'
-    print '[%s] Ping %s to confirm the AP is accessible' %\
-          (getNow(), host)
-    ping = subprocess.Popen(
-        ["ping",host],
-        stdout = subprocess.PIPE,
-        stderr =subprocess.PIPE
-    )
-    out, error = ping.communicate()
+        #process the output of ping
+        m = re.search('Lost =.+\((.*)% loss\)', out)
+        found = '101'
+        if m:
+            found = m.group(1)
+        found = int(found)
 
-    print out
-    print '[%s] End ping' % getNow()
-
-    #process the output of ping
-    m = re.search('Lost =.+\((.*)% loss\)', out)
-    found = '101'
-    if m:
-        found = m.group(1)
-    found = int(found)
-
-    if found <= 50: # The packet loss threshold is 50%
-        print '[%s] Ping is success.'  % getNow()
-        #send update request
-        reqURL = reqURLTemplate % channel
-        print '[%s] Begin to change channel to %d' % (getNow(), channel)
-        r = requests.get(reqURL, auth=('admin', 'admin'), headers=headers)
-        if r.text.find('TOTAL_CHANNEL') > 0:
-            print '[%s] Change channel to %d is success' % (getNow(), channel)
-            channel = channel + 1;
+        if found <= 50: # The packet loss threshold is 50%
+            print '[%s] Ping is success.'  % getNow()
+            #send update request
+            reqURL = reqURLTemplate % channel
+            print '[CH:%d][%s] Begin to change channel to %d' % (channel, getNow(), channel)
+            r = requests.get(reqURL, auth=('admin', 'admin'), headers=headers)
+            if r.text.find('TOTAL_CHANNEL') > 0:
+                print '[CH:%d][%s] Change channel to %d is success' % (channel, getNow(), channel)
+                channel = channel + 1;
+            else:
+                print '[CH:%d][%s] Change channel to %d is failed' % (channel, getNow(), channel)
+            if channel > channelEnd:
+                channel = channelBegin
+            print 'We are sleeping for %d seconds, the next channel is %d' % (intervalInSeconds, channel)
+            for i in range(1, intervalInSeconds):
+                time.sleep(1)
+                sys.stdout.write('.')
+                if i % 60 == 0:
+                    sys.stdout.write('\n')
+            print 'Done.'
         else:
-            print '[%s] Change channel to %d is failed' % (getNow(), channel)
-        if channel > channelEnd:
-            channel = channelBegin
-        print 'We are sleeping for %d seconds, the next channel is %d' % (intervalInSeconds, channel)
-        for i in range(1, intervalInSeconds):
-            time.sleep(1)
-            sys.stdout.write('.')
-            if i % 60 == 0:
-                sys.stdout.write('\n')
-        print 'Done.'
-    else:
-        print '[%s] Ping is failed. We will ping again.' % getNow()
+            print '[%s] Ping is failed. We will ping again.' % getNow()
+except:
+        print '\n[%s] The script is terminated.' % getNow()
