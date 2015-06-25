@@ -13,15 +13,17 @@ from datetime import datetime
 # command argument sequence is
 # interval, begin channel, end channel, host
 # parameters
-intervalInSeconds = 20 # 120 seconds as default
+intervalInSeconds = 20  # 120 seconds as default
 channelBegin = 1
 channelEnd = 11
 host = "192.168.0.1"
+
 
 def printHelp():
     print("Usage:\nUpdateChannel [interval in seconds] [begin channel] [end channel] [AP's ip]")
     print("If you do not set arguments, the predefined arguments would be used.")
     print("\nAuthor: Dong Han    Email: minicpp@gmail.com    Date: 06/23/2015")
+
 
 def printArgs():
     print("[Running] in these arguments:")
@@ -29,8 +31,10 @@ def printArgs():
     print("\tChannel: from %d to %d in infinite loop, until you terminate the script." % (channelBegin, channelEnd))
     print("\tAP's ip: %s" % host)
 
+
 def getNow():
-    return datetime.strftime(datetime.now(),'%Y-%m-%d %H:%M:%S')
+    return datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S')
+
 
 def getInterval():
     num = -1
@@ -45,6 +49,7 @@ def getInterval():
     printHelp()
     sys.exit()
 
+
 def getChannel(str):
     num = -1
     if str.isdigit():
@@ -58,6 +63,7 @@ def getChannel(str):
     printHelp()
     sys.exit()
 
+
 def getIP(address):
     try:
         socket.inet_aton(address)
@@ -66,6 +72,7 @@ def getIP(address):
         printHelp()
         sys.exit()
     return address
+
 
 numOfArg = len(sys.argv)
 if numOfArg >= 2:
@@ -96,52 +103,53 @@ if numOfArg > 6:
 
 printArgs()
 
-
-
 channel = channelBegin
-reqURLTemplate = 'http://'+host+'/userRpm/WlanNetworkRpm.htm?' \
-         'ssid1=ABCexp&ssid2=TP-LINK_CC2186_2&ssid3=TP-LINK_CC2186_3&' \
-         'ssid4=TP-LINK_CC2186_4&region=101&band=0&mode=5&chanWidth=1&' \
-         'channel=%d&rate=59&ap=1&brlssid=&brlbssid=&addrType=1&keytype=1&' \
-         'wepindex=1&authtype=1&keytext=&Save=Save'
-headers = {'Referer': 'http://'+host+'/userRpm/WlanNetworkRpm.htm'}
-
+reqURLTemplate = 'http://' + host + '/userRpm/WlanNetworkRpm.htm?' \
+                                    'ssid1=ABCexp&ssid2=TP-LINK_CC2186_2&ssid3=TP-LINK_CC2186_3&' \
+                                    'ssid4=TP-LINK_CC2186_4&region=101&band=0&mode=5&chanWidth=1&' \
+                                    'channel=%d&rate=59&ap=1&brlssid=&brlbssid=&addrType=1&keytype=1&' \
+                                    'wepindex=1&authtype=1&keytext=&Save=Save'
+headers = {'Referer': 'http://' + host + '/userRpm/WlanNetworkRpm.htm'}
 
 count = 0
 try:
     while True:
-        count = count + 1
+        count += 1
         print '--------------------------- [Count: %d] -----------------------------------' % count
-        print '[%s] Ping %s to confirm the AP is accessible' %\
+        print '[%s] Ping %s to confirm the AP is accessible' % \
               (getNow(), host)
         ping = subprocess.Popen(
-            ["ping",host],
-            stdout = subprocess.PIPE,
-            stderr =subprocess.PIPE
+            ["ping", host],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
         out, error = ping.communicate()
 
         print out
         print '[%s] End ping' % getNow()
 
-        #process the output of ping
+        # process the output of ping
         m = re.search('Lost =.+\((.*)% loss\)', out)
         found = '101'
         if m:
             found = m.group(1)
         found = int(found)
 
-        if found <= 50: # The packet loss threshold is 50%
-            print '[%s] Ping is success.'  % getNow()
-            #send update request
+        if found <= 50:  # The packet loss threshold is 50%
+            print '[%s] Ping is success.' % getNow()
+            # send update request
             reqURL = reqURLTemplate % channel
             print '[CH:%d][%s] Begin to change channel to %d' % (channel, getNow(), channel)
-            r = requests.get(reqURL, auth=('admin', 'admin'), headers=headers)
-            if r.text.find('TOTAL_CHANNEL') > 0:
-                print '[CH:%d][%s] Change channel to %d is success' % (channel, getNow(), channel)
-                channel = channel + 1;
-            else:
-                print '[CH:%d][%s] Change channel to %d is failed' % (channel, getNow(), channel)
+            try:
+                r = requests.get(reqURL, auth=('admin', 'admin'), headers=headers, timeout=30)
+                if r.text.find('TOTAL_CHANNEL') > 0:
+                    print '[CH:%d][%s] Change channel to %d is success' % (channel, getNow(), channel)
+                    channel += 1
+                else:
+                    print '[CH:%d][%s] Change channel to %d is failed' % (channel, getNow(), channel)
+            except requests.exceptions.ConnectionError as e:
+                print e
+                print "Failed to connect server."
             if channel > channelEnd:
                 channel = channelBegin
             print 'We are sleeping for %d seconds, the next channel is %d' % (intervalInSeconds, channel)
@@ -153,5 +161,8 @@ try:
             print 'Done.'
         else:
             print '[%s] Ping is failed. We will ping again.' % getNow()
-except:
-        print '\n[%s] The script is terminated.' % getNow()
+except KeyboardInterrupt:
+    print '\n[%s] The script is terminated.' % getNow()
+    sys.exit()
+except Exception as e:
+    print e
