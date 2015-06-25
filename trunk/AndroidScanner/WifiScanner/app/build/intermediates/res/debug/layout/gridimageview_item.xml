@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the parent view -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_gravity="center"
+    android:gravity="center"
+    android:padding="5dp"
+    android:clickable="false"
+    android:id="@+id/photoFrame">
+
+    <!-- the ImageView for the icon -->
+    <ImageView android:id="@+id/photoThumbnail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="1dp"
+        android:contentDescription="abc"
+        android:scaleType="fitXY"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:clickable="false" />
+
+    <!--  the TextView for the title -->
+    <TextView android:id="@+id/photoTitle"
+        android:layout_below="@id/photoThumbnail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:layout_centerHorizontal="true"
+        android:textAppearance="@android:style/TextAppearance.Medium"
+        android:inputType="textMultiLine"
+        android:clickable="false" />
+</RelativeLayout>
+<!-- From: file:/D:/mydoc/research/cowifi/AndroidScanner/WifiScanner/app/src/main/res/layout/gridimageview_item.xml -->

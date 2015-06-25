@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Handheld WiFi RSSI Meter</string>
+
+    <string name="hello_world">Author: Dong Han</string>
+    <string name="action_history">History</string>
+    <string name="action_home">Home</string>
+</resources>
