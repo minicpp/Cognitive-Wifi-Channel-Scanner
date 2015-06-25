@@ -1,0 +1,9 @@
+('d:\\mydoc\\research\\cowifi\\channelhop\\dist\\UpdateChannel.exe',
+ True,
+ False,
+ None,
+ None,
+ [],
+ None,
+ False,
+ 1435128476L)
