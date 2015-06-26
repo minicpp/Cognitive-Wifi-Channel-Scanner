@@ -24,6 +24,10 @@ public class FileManager {
     private String tempLogFilePath;
     private OutputStream tempLogFileOutputStream = null;
 
+    private File tempRecordFile = null;
+    private String tempRecordFilePath;
+    private OutputStream tempRecordFileOutputStream = null;
+
     public String getTempPath() {
         return tempPath;
     }
@@ -39,6 +43,72 @@ public class FileManager {
             }
             tempLogFileOutputStream = new BufferedOutputStream(new FileOutputStream(tempLogFile, false));
         } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean reopenRecordFile(){
+        tempRecordFilePath = tempPath + "/record.csv";
+        tempRecordFile = new File(tempRecordFilePath);
+        tempRecordFileOutputStream = null;
+        try {
+            if (tempRecordFileOutputStream != null) {
+                tempRecordFileOutputStream.close();
+                tempRecordFileOutputStream = null;
+            }
+            tempRecordFileOutputStream = new BufferedOutputStream(new FileOutputStream(tempRecordFile, false));
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean closeLogFile() {
+        try {
+            if (tempLogFileOutputStream != null) {
+                tempLogFileOutputStream.close();
+                tempLogFileOutputStream = null;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean closeRecordFile() {
+        try {
+            if (tempRecordFileOutputStream != null) {
+                tempRecordFileOutputStream.close();
+                tempRecordFileOutputStream = null;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean appendToLogFile(String str) {
+        try {
+            if (tempLogFileOutputStream == null)
+                return false;
+            tempLogFileOutputStream.write(str.getBytes());
+            tempLogFileOutputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    public boolean appendToRecordFile(String str) {
+        try {
+            if (tempRecordFileOutputStream == null)
+                return false;
+            tempRecordFileOutputStream.write(str.getBytes());
+            tempRecordFileOutputStream.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
             return false;
         }
         return true;
@@ -61,38 +131,14 @@ public class FileManager {
         if (path.isDirectory())
             for (File child : path.listFiles())
                 if (child.isFile()) {
-                    String name = child.getName();
-                    if (name.endsWith(".txt")) {
+                    String name = child.getName().toLowerCase();
+                    if (!name.endsWith(".jpg")) {
                         child.delete();
                     }
                 }
     }
 
 
-    public boolean closeLogFile() {
-        try {
-            if (tempLogFileOutputStream != null) {
-                tempLogFileOutputStream.close();
-                tempLogFileOutputStream = null;
-            }
-        } catch (Exception e) {
-            return false;
-        }
-        return true;
-    }
-
-    public boolean appendToLogFile(String str) {
-        try {
-            if (tempLogFileOutputStream == null)
-                return false;
-            tempLogFileOutputStream.write(str.getBytes());
-            tempLogFileOutputStream.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-            return false;
-        }
-        return true;
-    }
 
     public void createFolders() {
         // File path = Environment.getExternalStoragePublicDirectory(
@@ -140,6 +186,7 @@ public class FileManager {
         try {
             out = new BufferedOutputStream(new FileOutputStream(file));
             out.write(content.getBytes());
+            out.close();
         } catch (Exception e) {
             Log.d(MainActivity.LOG_TAG,"write file to:"+path+" failed");
         }

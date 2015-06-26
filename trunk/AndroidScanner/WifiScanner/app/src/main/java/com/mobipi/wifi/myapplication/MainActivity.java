@@ -12,7 +12,6 @@ import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.provider.MediaStore;
@@ -82,6 +81,9 @@ public class MainActivity extends Activity {
     private ImageGridViewAdapter mImageGridViewAdapter;
     private List<ImageGridViewItem> mImageItems;
     private GridView mPhotoGrid;
+    private ImageView bigImageView;
+
+    private LinearLayout statisticsFrame;
 
     private WifiScanner mScanner;
 
@@ -99,6 +101,7 @@ public class MainActivity extends Activity {
     private FileManager fileMgr;
     private String mCurrentPhotoPath;
     private String mCurrentPhotoPathTimeStamp;
+    private ChannelMgr channelMgr;
 
     Handler timerHandler = new Handler();
     Runnable timerRunnable = new Runnable() {
@@ -122,6 +125,7 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         super.onDestroy();
         fileMgr.closeLogFile();
+        channelMgr.stop();
         mScanner.release();
         Log.d(MainActivity.LOG_TAG, "on destroy");
         
@@ -193,8 +197,13 @@ public class MainActivity extends Activity {
 
         mPhotoGrid = (GridView) findViewById(R.id.photoGrid);
         mImageItems = new ArrayList<ImageGridViewItem>();
-        mImageGridViewAdapter = new ImageGridViewAdapter(this, mImageItems);
+        bigImageView = (ImageView) findViewById(R.id.bigImageView);
+        mImageGridViewAdapter = new ImageGridViewAdapter(this, mImageItems, bigImageView);
         mPhotoGrid.setAdapter(mImageGridViewAdapter);
+        bigImageView.setVisibility(View.GONE);
+
+        statisticsFrame=(LinearLayout) findViewById(R.id.statisticsFrame);
+        statisticsFrame.setVisibility(View.GONE);
 
         mScanner = new WifiScanner(this);
         mScanner.init();
@@ -239,6 +248,8 @@ public class MainActivity extends Activity {
 
         fileMgr = new FileManager();
         fileMgr.createFolders();
+
+        channelMgr = new ChannelMgr(fileMgr);
 
         profileNameEditor = (EditText)findViewById(R.id.profileNameEditor);
         String profileName = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date());
@@ -304,6 +315,12 @@ public class MainActivity extends Activity {
                 }
             }, 500);
         }
+    }
+
+    public void closeBigImageView(View view){
+        ImageView iview = (ImageView)view;
+        iview.setVisibility(View.GONE);
+        iview.setImageDrawable(null);
     }
 
     public void openCamera(View view) {
@@ -428,7 +445,8 @@ public class MainActivity extends Activity {
         bPause = false;
         clearLogView();
         fileMgr.reopenLogFile();
-        addToLogView("Begin WiFi scan for AP with MAC: "+mScanContext.macAddress, true);
+        channelMgr.start();
+        addToLogView("Begin WiFi scan for AP with MAC: " + mScanContext.macAddress, true);
         updateLogView();
     }
 
@@ -457,6 +475,7 @@ public class MainActivity extends Activity {
         addToLogView("\tScanned channels: " + mScanContext.scannedChannel, false);
 
         endLog();
+        channelMgr.stop();
         updateLogView();
         macAddressEditor.setEnabled(true);
         changeBarColor(-1);
@@ -495,33 +514,30 @@ public class MainActivity extends Activity {
         saveButton.setEnabled(false);
     }
 
+    static public Bitmap getPic(int targetW, int targetH, String picPath){
+        // Get the dimensions of the bitmap
+        BitmapFactory.Options bmOptions = new BitmapFactory.Options();
+        bmOptions.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(picPath, bmOptions);
+        int photoW = bmOptions.outWidth;
+        int photoH = bmOptions.outHeight;
+
+        // Determine how much to scale down the image
+        int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
+
+        // Decode the image file into a Bitmap sized to fill the View
+        bmOptions.inJustDecodeBounds = false;
+        bmOptions.inSampleSize = scaleFactor;
+        bmOptions.inPurgeable = true;
+        return BitmapFactory.decodeFile(picPath, bmOptions);
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
             Log.d(MainActivity.LOG_TAG, "Get image: " + mCurrentPhotoPath);
 
-
-            // Get the dimensions of the View
-            int targetW = 121;
-            int targetH = 162;
-
-            // Get the dimensions of the bitmap
-            BitmapFactory.Options bmOptions = new BitmapFactory.Options();
-            bmOptions.inJustDecodeBounds = true;
-            BitmapFactory.decodeFile(mCurrentPhotoPath, bmOptions);
-            int photoW = bmOptions.outWidth;
-            int photoH = bmOptions.outHeight;
-
-            // Determine how much to scale down the image
-            int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
-
-            // Decode the image file into a Bitmap sized to fill the View
-            bmOptions.inJustDecodeBounds = false;
-            bmOptions.inSampleSize = scaleFactor;
-            bmOptions.inPurgeable = true;
-
-            Bitmap bitmap = BitmapFactory.decodeFile(mCurrentPhotoPath, bmOptions);
-
+            Bitmap bitmap = getPic(121, 162, mCurrentPhotoPath);
 
             ImageGridViewItem item = new ImageGridViewItem(bitmap, mCurrentPhotoPath, mCurrentPhotoPathTimeStamp);
             mImageItems.add(item);
@@ -546,13 +562,23 @@ public class MainActivity extends Activity {
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_home) {
-            mHistoryFrame.setVisibility(View.GONE);
             mMainFrame.setVisibility(View.VISIBLE);
+            mHistoryFrame.setVisibility(View.GONE);
+            bigImageView.setVisibility(View.GONE);
+            statisticsFrame.setVisibility(View.GONE);
             return true;
         } else if (id == R.id.action_history) {
-            mMainFrame.setVisibility(View.GONE);
             mHistoryFrame.setVisibility(View.VISIBLE);
+            mMainFrame.setVisibility(View.GONE);
+            bigImageView.setVisibility(View.GONE);
+            statisticsFrame.setVisibility(View.GONE);
             return true;
+        }
+        else if(id == R.id.action_statistic){
+            statisticsFrame.setVisibility(View.VISIBLE);
+            mMainFrame.setVisibility(View.GONE);
+            mHistoryFrame.setVisibility(View.GONE);
+            bigImageView.setVisibility(View.GONE);
         }
 
         return super.onOptionsItemSelected(item);
@@ -584,6 +610,7 @@ public class MainActivity extends Activity {
                 break;
             }
         }
+        channelMgr.addRecord(res);
         if (res != null) {
             String ssid = res.SSID;
             if (ssid == null || ssid.length() == 0)
@@ -628,7 +655,7 @@ public class MainActivity extends Activity {
         sampledRecordsForCurrentChannel.setText("" + mScanContext.currentChannelSamples);
     }
 
-    public int getChannelFromFreq(int freq) {
+    public static int getChannelFromFreq(int freq) {
         return (freq - 2412) / 5 + 1;
     }
 }
@@ -649,6 +676,10 @@ class ScanContext {
     }
 }
 
+
+
+
+
 class ImageGridViewItem {
     public final Bitmap imageBitmap;
     public final String title;
@@ -668,15 +699,18 @@ class ImageGridViewItem {
 class ImageGridViewAdapter extends BaseAdapter {
     private Context mContext;
     private List<ImageGridViewItem> mItems;
-    private View.OnClickListener mCallback;
+    private View.OnClickListener mSelectCallback;
+    private View.OnClickListener mZoomCallback;
+    private ImageView bigImageView;
     private final static int SELECT_COLOR = Color.parseColor("#FFCCCC");
     private final static int NORMAL_COLOR = Color.TRANSPARENT;
     private final static int LOCK_COLOR = Color.parseColor("#FFB505");
 
-    public ImageGridViewAdapter(Context context, List<ImageGridViewItem> items) {
+    public ImageGridViewAdapter(Context context, List<ImageGridViewItem> items, final ImageView bigImageView) {
         mContext = context;
         mItems = items;
-        mCallback = new View.OnClickListener() {
+        this.bigImageView = bigImageView;
+        mSelectCallback = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Log.d(MainActivity.LOG_TAG, "click photo");
@@ -696,6 +730,18 @@ class ImageGridViewAdapter extends BaseAdapter {
                 }
             }
         };
+
+        mZoomCallback = new View.OnClickListener(){
+            public void onClick(View v) {
+                ViewHolder viewHolder = (ViewHolder) v.getTag();
+                int position = viewHolder.position;
+                ImageGridViewItem item = mItems.get(position);
+                Bitmap b = MainActivity.getPic(v.getWidth(),v.getHeight(),item.path);
+                bigImageView.setImageBitmap(b);
+                bigImageView.setVisibility(View.VISIBLE);
+            }
+        };
+
     }
 
     @Override
@@ -731,9 +777,9 @@ class ImageGridViewAdapter extends BaseAdapter {
         ImageGridViewItem item = mItems.get(position);
         viewHolder.mThumbnailImageView.setImageBitmap(item.imageBitmap);
         viewHolder.mTitleTextView.setText(item.title);
-        viewHolder.mThumbnailImageView.setOnClickListener(mCallback);
-        viewHolder.mPhotoFrame.setOnClickListener(mCallback);
-        viewHolder.mTitleTextView.setOnClickListener(mCallback);
+        viewHolder.mThumbnailImageView.setOnClickListener(mZoomCallback);
+        viewHolder.mPhotoFrame.setOnClickListener(mZoomCallback);
+        viewHolder.mTitleTextView.setOnClickListener(mSelectCallback);
         viewHolder.position = position;
 
         if (item.bSelect && !item.bLock)
