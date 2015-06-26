@@ -15,7 +15,7 @@
         <LinearLayout
             android:orientation="vertical"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="452dp"
             android:background="@android:color/black"
             android:paddingLeft="@dimen/activity_horizontal_margin"
             android:paddingRight="@dimen/activity_horizontal_margin"
@@ -43,12 +43,13 @@
                     android:layout_height="match_parent"
                     android:layout_weight="1">
 
-                    <GridView
-                        android:layout_width="fill_parent"
-                        android:layout_height="fill_parent"
-                        android:id="@+id/historyGrid"
-                        android:background="@android:color/white"
-                        android:numColumns="1"
+
+                    <ListView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:id="@+id/historyListView"
+                        android:divider="@android:color/holo_blue_bright"
+                        android:dividerHeight="1dp"
                         android:choiceMode="singleChoice" />
                 </LinearLayout>
 
@@ -56,7 +57,7 @@
                     android:orientation="vertical"
                     android:layout_width="0dp"
                     android:layout_height="match_parent"
-                    android:layout_weight="1"
+                    android:layout_weight="2"
                     android:layout_marginLeft="10dp">
 
                     <TextView
@@ -77,11 +78,12 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Details"
-                            android:id="@+id/textView19" />
+                            android:id="@+id/historyDetailsTextView" />
                     </ScrollView>
 
                 </LinearLayout>
             </LinearLayout>
+
         </LinearLayout>
 
         <LinearLayout
@@ -441,9 +443,10 @@
         <LinearLayout
             android:orientation="vertical"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="452dp"
             android:id="@+id/statisticsFrame"
             android:background="@android:color/black"
+            android:layout_margin="10dp"
             android:visibility="gone">
 
             <TextView
@@ -467,6 +470,20 @@
                     android:id="@+id/statisticsTextView" />
             </ScrollView>
 
+        </LinearLayout>
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="363dp"
+            android:background="@android:color/holo_blue_light"
+            android:id="@+id/chartLayout"
+            android:layout_gravity="bottom"
+            android:visibility="visible">
+            <com.github.mikephil.charting.charts.BarChart
+                android:id="@+id/chart"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
         </LinearLayout>
 
     </FrameLayout>

@@ -22,16 +22,25 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.github.mikephil.charting.charts.BarChart;
+import com.github.mikephil.charting.components.YAxis;
+import com.github.mikephil.charting.data.BarData;
+import com.github.mikephil.charting.data.BarDataSet;
+import com.github.mikephil.charting.data.BarEntry;
 
 import org.w3c.dom.Text;
 
@@ -109,6 +118,17 @@ public class MainActivity extends Activity {
     private String mCurrentPhotoPath;
     private String mCurrentPhotoPathTimeStamp;
     private ChannelMgr channelMgr;
+
+    //
+    private ListView historyListView;
+    private ArrayAdapter<String> historyAdaptor;
+    private TextView historyDetailsTextView;
+
+    //chart
+    private BarChart chart;
+    private LinearLayout chartLayout;
+    private BarDraw barDraw;
+    ChannelSummaryCollector lastHistoryCollector=null;
 
 
     Handler timerHandler = new Handler();
@@ -271,6 +291,29 @@ public class MainActivity extends Activity {
         profileName = "rec_"+profileName;
         profileNameEditor.setText(profileName);
         remarksEditor = (EditText)findViewById(R.id.remarksEditor);
+
+        historyDetailsTextView = (TextView)findViewById(R.id.historyDetailsTextView);
+        historyListView = (ListView)findViewById(R.id.historyListView);
+        historyListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position,
+                                    long id) {
+                ChannelSummaryCollector summaryCollector = channelMgr.readChannelSummary(historyAdaptor.getItem(position));
+                lastHistoryCollector = summaryCollector;
+                String str = summaryCollector.toString();
+                historyDetailsTextView.setText(str);
+                barDraw.update(summaryCollector.channelSummaryList);
+            }
+        });
+        historyAdaptor = new ArrayAdapter<String>(this, R.layout.simple_textview,
+                channelMgr.getHistoryRecords());
+        historyListView.setAdapter(historyAdaptor);
+        ChannelSummaryCollector lastHistoryCollector=null;
+
+        chart = (BarChart) findViewById(R.id.chart);
+        chartLayout = (LinearLayout)findViewById(R.id.chartLayout);
+        chartLayout.setVisibility(View.GONE);
+        barDraw = new BarDraw(chart);
     }
 
     private void changeBarColor(int channel) {
@@ -526,7 +569,7 @@ public class MainActivity extends Activity {
         fileMgr.saveToProfileFolder("remark.txt", folderName, remarksEditor.getText().toString());
         fileMgr.saveToProfileFolder("statistic.txt", folderName, channelMgr.toString());
         channelMgr.saveChannelSummary(folderName);
-        ChannelSummaryCollector c = channelMgr.readChannelSummary(folderName);
+        //ChannelSummaryCollector c = channelMgr.readChannelSummary(folderName);
 
         //end save
         Toast.makeText(this, "Your records have been saved in folder: "+folderName, Toast.LENGTH_LONG).show();
@@ -586,20 +629,35 @@ public class MainActivity extends Activity {
             mHistoryFrame.setVisibility(View.GONE);
             bigImageView.setVisibility(View.GONE);
             statisticsFrame.setVisibility(View.GONE);
+            chartLayout.setVisibility(View.GONE);
             return true;
         } else if (id == R.id.action_history) {
             mHistoryFrame.setVisibility(View.VISIBLE);
             mMainFrame.setVisibility(View.GONE);
             bigImageView.setVisibility(View.GONE);
             statisticsFrame.setVisibility(View.GONE);
+            chartLayout.setVisibility(View.VISIBLE);
+
+            historyAdaptor.clear();
+            historyAdaptor.addAll(channelMgr.getHistoryRecords());
+            historyAdaptor.notifyDataSetChanged();
+
+            if(lastHistoryCollector == null)
+                barDraw.updateZero();
+            else
+                barDraw.update(lastHistoryCollector.channelSummaryList);
             return true;
         }
-        else if(id == R.id.action_statistic){
+        else if(id == R.id.action_statistic) {
             statisticsTextView.setText(channelMgr.toString());
             statisticsFrame.setVisibility(View.VISIBLE);
             mMainFrame.setVisibility(View.GONE);
             mHistoryFrame.setVisibility(View.GONE);
             bigImageView.setVisibility(View.GONE);
+            chartLayout.setVisibility(View.VISIBLE);
+
+            barDraw.update(channelMgr.getChannelSummaryItemList());
+            return true;
         }
 
         return super.onOptionsItemSelected(item);
@@ -679,10 +737,63 @@ public class MainActivity extends Activity {
         if(statisticsFrame.getVisibility() == View.VISIBLE){
             statisticsTextView.setText(channelMgr.toString());
         }
+        if(statisticsFrame.getVisibility() == View.VISIBLE && chartLayout.getVisibility() == View.VISIBLE){
+            barDraw.update(channelMgr.getChannelSummaryItemList());
+        }
     }
 
     public static int getChannelFromFreq(int freq) {
         return (freq - 2412) / 5 + 1;
+    }
+
+    class BarDraw{
+        ArrayList<BarEntry> entries = new ArrayList<>();
+        ArrayList<String> labels = new ArrayList<String>();
+        BarData data;
+        BarDataSet dataset;
+        BarChart chart;
+        public BarDraw(BarChart chart){
+            for(int i=0; i<11; ++i){
+                entries.add(new BarEntry(0.0f, i));
+                labels.add("CH "+(i+1));
+            }
+            dataset =  new BarDataSet(entries, "Average RSSI");
+            data = new BarData(labels, dataset);
+            this.chart = chart;
+
+            YAxis leftAxis = chart.getAxisLeft();
+            leftAxis.setAxisMinValue(-100);
+            leftAxis.setAxisMaxValue(10);
+            leftAxis.setStartAtZero(false);
+            chart.setDescription("Average RSSI");
+            chart.setData(data);
+            //chart.notifyDataSetChanged();
+        }
+        public void update(List<ChannelSummaryItem> sumCol){
+            if(sumCol==null || sumCol.size() == 0)
+            {
+                updateZero();
+                return;
+            }
+            for(int i=0;i <11; ++i){
+                ChannelSummaryItem item = sumCol.get(i);
+                BarEntry ent= entries.get(i);
+                ent.setVal((float) item.getAverageRSSI());
+                //ent.setVal((float)0.02f);
+            }
+            chart.notifyDataSetChanged();
+            chart.invalidate();
+        }
+
+        public void updateZero(){
+            for(int i=0;i <11; ++i){
+                BarEntry ent= entries.get(i);
+                ent.setVal((float)0);
+                //ent.setVal((float)0.02f);
+            }
+            chart.notifyDataSetChanged();
+            chart.invalidate();
+        }
     }
 }
 
