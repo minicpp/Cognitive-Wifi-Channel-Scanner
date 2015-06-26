@@ -1,33 +1,31 @@
 package com.mobipi.wifi.myapplication;
 
-import android.app.ActionBar;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
+import android.net.Uri;
 import android.net.wifi.ScanResult;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.SystemClock;
 import android.provider.MediaStore;
 import android.util.Log;
-import android.view.ActionMode;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
-import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.GridView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -36,9 +34,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.w3c.dom.Text;
-
-import java.nio.charset.Charset;
+import java.io.File;
+import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -53,7 +50,9 @@ public class MainActivity extends Activity {
     private final static String[] COLOR_ARRAY = {"#7be5b5", "#f03b20", "#c51b8a", "#b083ea", "#feb24c", "#ce6950", "#9ebcda", "#a4fcc1",
             "#fca58f", "#85a019", "#e57d7b", "#8102e2", "#7376ce"};
     private static int[] COLOR_MAP;
-    private int mOldNaviationBarColor;
+    public  static String LOG_TAG = "wifirssi";
+
+    private int mOldNavigationBarColor;
 
     private LinearLayout mHistoryFrame;
     private LinearLayout mMainFrame;
@@ -76,21 +75,17 @@ public class MainActivity extends Activity {
     private TextView avgRSSITextView;
     //Editor
     private EditText macAddressEditor;
+    private EditText profileNameEditor;
+    private EditText remarksEditor;
 
     // for photos grid
     private ImageGridViewAdapter mImageGridViewAdapter;
     private List<ImageGridViewItem> mImageItems;
     private GridView mPhotoGrid;
 
-    private boolean mUpdated = false;
-
     private WifiScanner mScanner;
 
-    public void needUpdate() {
-        mUpdated = true;
-    }
 
-    ;
 
     private boolean wifiInterrupted = false;
     private boolean bPause = false;
@@ -100,6 +95,10 @@ public class MainActivity extends Activity {
     private long pausedTimeStamp;
     private long startTime;
     private long totalElapsedTime;
+
+    private FileManager fileMgr;
+    private String mCurrentPhotoPath;
+    private String mCurrentPhotoPathTimeStamp;
 
     Handler timerHandler = new Handler();
     Runnable timerRunnable = new Runnable() {
@@ -122,12 +121,15 @@ public class MainActivity extends Activity {
 
     protected void onDestroy() {
         super.onDestroy();
-        Log.d("wifirssi", "on destroy");
+        fileMgr.closeLogFile();
+        mScanner.release();
+        Log.d(MainActivity.LOG_TAG, "on destroy");
+        
     }
 
     protected void onResume() {
         super.onResume();
-        Log.d("wifirssi", "on resume");
+        Log.d(MainActivity.LOG_TAG, "on resume");
         if (wifiInterrupted) {
             resumeTimer();
             long duration = (SystemClock.elapsedRealtime() - pausedTimeStamp);
@@ -139,7 +141,7 @@ public class MainActivity extends Activity {
 
     protected void onPause() {
         super.onPause();
-        Log.d("wifirssi", "on pause");
+        Log.d(MainActivity.LOG_TAG, "on pause");
         if (mScanner.isRun()) {
             wifiInterrupted = true;
             mScanner.stop();
@@ -206,8 +208,8 @@ public class MainActivity extends Activity {
         stopButton.setEnabled(false);
         saveButton.setEnabled(false);
         pauseButton.setEnabled(false);
-        mUpdated = false;
-        Log.d("wifirssi", "oncreate");
+
+        Log.d(MainActivity.LOG_TAG, "oncreate");
 
         logView = (TextView) findViewById(R.id.logView);
         logStrBuffer = new StringBuffer();
@@ -233,15 +235,23 @@ public class MainActivity extends Activity {
         for (int i = 0; i < COLOR_MAP.length; ++i) {
             COLOR_MAP[i] = Color.parseColor(COLOR_ARRAY[i]);
         }
-        mOldNaviationBarColor = getWindow().getNavigationBarColor();
+        mOldNavigationBarColor = getWindow().getNavigationBarColor();
 
+        fileMgr = new FileManager();
+        fileMgr.createFolders();
+
+        profileNameEditor = (EditText)findViewById(R.id.profileNameEditor);
+        String profileName = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date());
+        profileName = "rec_"+profileName;
+        profileNameEditor.setText(profileName);
+        remarksEditor = (EditText)findViewById(R.id.remarksEditor);
     }
 
     private void changeBarColor(int channel) {
 
         if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (channel < 0)
-                getWindow().setNavigationBarColor(mOldNaviationBarColor);
+                getWindow().setNavigationBarColor(mOldNavigationBarColor);
             else
                 getWindow().setNavigationBarColor(COLOR_MAP[channel]);
         }
@@ -253,12 +263,17 @@ public class MainActivity extends Activity {
         logStrBuffer.append(str).append("\n");
     }
 
+    public void clearLogView(){
+        logStrBuffer = new StringBuffer();
+    }
+
     public void addToLogView(String str, boolean bTimeNow) {
         int length = logStrBuffer.length();
         if (length > 4096) { //shrink the buffer
             int midLength = logStrBuffer.length() / 2;
             for (int i = midLength; i < length; ++i) {
                 if (logStrBuffer.charAt(i) == '\n') {
+                    fileMgr.appendToLogFile(logStrBuffer.substring(0, i+1));
                     logStrBuffer.delete(0, i + 1);
                     break;
                 }
@@ -293,11 +308,29 @@ public class MainActivity extends Activity {
 
     public void openCamera(View view) {
         // Do something in response to button click
-        Log.d("wifirssi", "The take photo button is clicked");
+        Log.d(MainActivity.LOG_TAG, "The take photo button is clicked");
 
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+        try {
+            if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+
+                mCurrentPhotoPathTimeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                String imageFileName = "JPEG_" + mCurrentPhotoPathTimeStamp + "_";
+                File storageDir = new File(fileMgr.getTempPath());
+                File image = null;
+
+                image = File.createTempFile(
+                        imageFileName,  /* prefix */
+                        ".jpg",         /* suffix */
+                        storageDir      /* directory */
+                );
+                mCurrentPhotoPath = image.getAbsolutePath();
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT,
+                        Uri.fromFile(image));
+                startActivityForResult(takePictureIntent, REQUEST_IMAGE_CAPTURE);
+            }
+        } catch (IOException e) {
+            Log.d(MainActivity.LOG_TAG, "Create Image file failed");
         }
     }
 
@@ -306,13 +339,13 @@ public class MainActivity extends Activity {
         for (Iterator<ImageGridViewItem> iter = mImageItems.iterator(); iter.hasNext(); ) {
             ImageGridViewItem item = iter.next();
             if (item.bSelect && !item.bLock) {
+                fileMgr.deleteFile(item.path);
                 iter.remove();
                 bUpdate = true;
             }
         }
         if (bUpdate) {
             mImageGridViewAdapter.notifyDataSetChanged();
-            needUpdate();
         }
     }
 
@@ -331,13 +364,49 @@ public class MainActivity extends Activity {
         timerHandler.postDelayed(timerRunnable, 0);
     }
 
-    public void startScan(View view) {
-        Log.d("wifirssi", "start scan");
+    public void askSave(){
+        new AlertDialog.Builder(this)
+                .setMessage("You do not save the current record.\nDo you want discard?")
+                .setCancelable(false)
+                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        startScan();
+                    }
+                })
+                .setNegativeButton("No", null)
+                .show();
+    }
 
+    private void clearTempBeforeStart(){
+        fileMgr.clearTxtFilesInTempFolder(); //remove log and records' files
+
+        boolean bUpdate = false;
+        for (Iterator<ImageGridViewItem> iter = mImageItems.iterator(); iter.hasNext(); ) {
+            ImageGridViewItem item = iter.next();
+            if (!item.bLock) {
+                fileMgr.deleteFile(item.path);
+                iter.remove();
+                bUpdate = true;
+            }
+        }
+        if (bUpdate) {
+            mImageGridViewAdapter.notifyDataSetChanged();
+        }
+    }
+
+    public void startScan(){
         currentChannelTextView.setText("N/A");
         scannedChannelsTextView.setText("0");
         totalTimeTextView.setText("0");
         avgRSSITextView.setText("0");
+
+
+
+        String profileName = new SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date());
+        profileName = "rec_"+profileName;
+        profileNameEditor.setText(profileName);
+
+        clearTempBeforeStart();
 
         startTimer();
 
@@ -355,44 +424,108 @@ public class MainActivity extends Activity {
         startButton.setEnabled(false);
         stopButton.setEnabled(true);
         pauseButton.setEnabled(true);
+        saveButton.setEnabled(false);
         bPause = false;
-        addToLogView("Begin WiFi scan...", true);
+        clearLogView();
+        fileMgr.reopenLogFile();
+        addToLogView("Begin WiFi scan for AP with MAC: "+mScanContext.macAddress, true);
         updateLogView();
     }
 
+
+    public void onStartScan(View view) {
+        Log.d(MainActivity.LOG_TAG, "start scan");
+        if(saveButton.isEnabled())
+            askSave();
+        else
+            startScan();
+    }
+
     public void endScan(View view) {
-        Log.d("wifirssi", "end scan");
+        Log.d(MainActivity.LOG_TAG, "end scan");
         stopTimer();
         mScanner.stop();
         startButton.setEnabled(true);
         stopButton.setEnabled(false);
+        saveButton.setEnabled(true);
 
         pauseButton.setText("pause");
         bPause = false;
         pauseButton.setEnabled(false);
         addToLogView("End WiFi scan.", true);
+        addToLogView("\tTotal elapsed Time (s): "+ (double)totalElapsedTime/1000.0 , false);
+        addToLogView("\tScanned channels: " + mScanContext.scannedChannel, false);
+
+        endLog();
         updateLogView();
         macAddressEditor.setEnabled(true);
         changeBarColor(-1);
     }
 
+    private void endLog(){
+        fileMgr.appendToLogFile(logStrBuffer.toString());
+        fileMgr.closeLogFile();
+    }
+
     public void saveScan(View view) {
-        Log.d("wifirssi", "save scan");
+        Log.d(MainActivity.LOG_TAG, "save scan");
+        String folderName = profileNameEditor.getText().toString();
+        folderName = folderName.trim();
+        if (!folderName.matches("^[0-9a-zA-Z_]+$")) {
+            Toast.makeText(this, "The profile name is not valid. Cannot save.", Toast.LENGTH_LONG).show();
+            profileNameEditor.requestFocus();
+            return;
+        }
+        else if(fileMgr.isProfileFolderExist(folderName))
+        {
+            Toast.makeText(this, "Duplicated profile name. Cannot save. Please give an unique name.", Toast.LENGTH_LONG).show();
+            profileNameEditor.requestFocus();
+            return;
+        }
+
+        //begin save
+        //Move log
+        fileMgr.copyAllFilesToProfilefolder(folderName);
+        //write remarks
+        fileMgr.saveToProfileFolder("remark.txt", folderName, remarksEditor.getText().toString());
+        //Move picture
+
+        //end save
+        Toast.makeText(this, "Your records have been saved in folder: "+folderName, Toast.LENGTH_LONG).show();
+        saveButton.setEnabled(false);
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == RESULT_OK) {
-            Bundle extras = data.getExtras();
-            Bitmap imageBitmap = (Bitmap) extras.get("data");
-            SimpleDateFormat format = new SimpleDateFormat();
+            Log.d(MainActivity.LOG_TAG, "Get image: " + mCurrentPhotoPath);
 
-            DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss");
-            Date date = new Date();
-            ImageGridViewItem item = new ImageGridViewItem(imageBitmap, dateFormat.format(date));
+
+            // Get the dimensions of the View
+            int targetW = 121;
+            int targetH = 162;
+
+            // Get the dimensions of the bitmap
+            BitmapFactory.Options bmOptions = new BitmapFactory.Options();
+            bmOptions.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(mCurrentPhotoPath, bmOptions);
+            int photoW = bmOptions.outWidth;
+            int photoH = bmOptions.outHeight;
+
+            // Determine how much to scale down the image
+            int scaleFactor = Math.min(photoW / targetW, photoH / targetH);
+
+            // Decode the image file into a Bitmap sized to fill the View
+            bmOptions.inJustDecodeBounds = false;
+            bmOptions.inSampleSize = scaleFactor;
+            bmOptions.inPurgeable = true;
+
+            Bitmap bitmap = BitmapFactory.decodeFile(mCurrentPhotoPath, bmOptions);
+
+
+            ImageGridViewItem item = new ImageGridViewItem(bitmap, mCurrentPhotoPath, mCurrentPhotoPathTimeStamp);
             mImageItems.add(item);
             mImageGridViewAdapter.notifyDataSetChanged();
-            needUpdate();
         }
     }
 
@@ -445,7 +578,7 @@ public class MainActivity extends Activity {
         ScanResult res = null;
         String log = "[" + mScanContext.scanCounts + "] Get " + list.size() + " APs; ";
         for (ScanResult sres : list) {
-            //Log.d("wifirssi","BSSID:"+res.BSSID+" SSID:"+res.SSID+" freq:"+(1+(res.frequency-2412)/5)+" Level(RSSI):"+res.level+" timeStamp(s):"+(double)res.timestamp/1000000.0);
+            //Log.d(MainActivity.LOG_TAG,"BSSID:"+res.BSSID+" SSID:"+res.SSID+" freq:"+(1+(res.frequency-2412)/5)+" Level(RSSI):"+res.level+" timeStamp(s):"+(double)res.timestamp/1000000.0);
             if (sres.BSSID.equals(mScanContext.macAddress)) {
                 res = sres;
                 break;
@@ -458,11 +591,22 @@ public class MainActivity extends Activity {
             int channel = getChannelFromFreq(res.frequency);
             log += "** Found, SSID:" + ssid + ", CH:" + channel + "; RSSI:" + res.level + ";\n\tTS:" + (double) res.timestamp / 1000000.0;
             if (mScanContext.currentChannel != channel) {
+
+                if(mScanContext.currentChannel > 0) {
+                    addToLogView("^^^^^^^^ Elapsed time for channel [" + mScanContext.currentChannel + "]: " +
+                            formatElapseTime(totalElapsedTime - mScanContext.currentChannelStartTime), false);
+                    addToLogView("^^^^^^^^ Number of samples for channel [" + mScanContext.currentChannel + "]: " +
+                            mScanContext.currentChannelSamples, false);
+                    if (mScanContext.currentChannelSamples > 0)
+                        addToLogView("^^^^^^^^ Average RSSI for channel [" + mScanContext.currentChannel + "]: " +
+                                mScanContext.getAverageRSSI(), false);
+                }
+
                 mScanContext.currentChannel = channel;
                 mScanContext.currentChannelSamples = 1;
                 mScanContext.sumCurrentRSSI = res.level;
                 mScanContext.currentChannelStartTime = totalElapsedTime;
-                currentChannelTextView.setText("" + channel);
+
                 ++mScanContext.scannedChannel;
                 if (mScanContext.scannedChannel > 0) {
                     scannedChannelsTextView.setText("" + mScanContext.scannedChannel);
@@ -472,7 +616,8 @@ public class MainActivity extends Activity {
                 ++mScanContext.currentChannelSamples;
                 mScanContext.sumCurrentRSSI += res.level;
             }
-            double avgRSSI = (double) mScanContext.sumCurrentRSSI / (double) mScanContext.currentChannelSamples;
+            currentChannelTextView.setText(channel+" ("+mScanContext.currentChannelSamples+")");
+            double avgRSSI = mScanContext.getAverageRSSI();
             avgRSSITextView.setText(String.format("%.3f", avgRSSI));
         } else {
             log += "-- Not found.";
@@ -499,16 +644,21 @@ class ScanContext {
     public int sumCurrentRSSI = 0;
     public String macAddress;
     public int currentChannelSamples = 0;
+    public double getAverageRSSI(){
+        return (double)(sumCurrentRSSI)/(double)(currentChannelSamples);
+    }
 }
 
 class ImageGridViewItem {
     public final Bitmap imageBitmap;
     public final String title;
+    public final String path;
     public boolean bSelect;
     public boolean bLock;
 
-    public ImageGridViewItem(Bitmap bitmap, String title) {
+    public ImageGridViewItem(Bitmap bitmap, String path, String title) {
         this.imageBitmap = bitmap;
+        this.path = path;
         this.title = title;
         bSelect = false;
         bLock = false;
@@ -529,7 +679,7 @@ class ImageGridViewAdapter extends BaseAdapter {
         mCallback = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Log.d("wifirssi", "click photo");
+                Log.d(MainActivity.LOG_TAG, "click photo");
                 ViewHolder viewHolder = (ViewHolder) v.getTag();
                 int position = viewHolder.position;
                 ImageGridViewItem item = mItems.get(position);
