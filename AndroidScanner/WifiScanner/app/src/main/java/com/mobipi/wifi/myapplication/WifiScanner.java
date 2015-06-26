@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.SystemClock;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -23,6 +24,8 @@ public class WifiScanner {
     WifiStateChange mWifiStateChange;
     boolean mRunning = false;
     WifiManager.WifiLock lock;
+    private long lastScanTime;
+    public final static int FREEZE = 2000;
     public WifiScanner(MainActivity context){
         mContext = context;
     }
@@ -53,6 +56,7 @@ public class WifiScanner {
             mRunning = true;
             lock.acquire();
             mWifiMgr.startScan();
+            lastScanTime = System.currentTimeMillis();
         }
     }
 
@@ -64,6 +68,22 @@ public class WifiScanner {
         }
     }
 
+    public boolean keepScanAlive(){
+        if(mRunning){
+            long noActiveTime = System.currentTimeMillis() - lastScanTime;
+            if(noActiveTime > FREEZE) // greater than 2 seconds, it means that there is a problem
+            {
+                Log.d(MainActivity.LOG_TAG, "Detect scanner is freezed for "+FREEZE+"ms, reactivate it.");
+                //mContext.unregisterReceiver(mReceiver);
+                //mContext.registerReceiver(mReceiver, new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
+                mWifiMgr.startScan();
+                lastScanTime = System.currentTimeMillis();
+                return true;
+            }
+        }
+        return false;
+    }
+
     class WifiReceiver extends BroadcastReceiver {
 
         public void onReceive(Context c, Intent intent) {
@@ -71,6 +91,7 @@ public class WifiScanner {
             mContext.wifiScanCallback(mWifiList);
             Log.d(MainActivity.LOG_TAG, "start scan again");
             mWifiMgr.startScan();
+            lastScanTime = System.currentTimeMillis();
         }
 
     }

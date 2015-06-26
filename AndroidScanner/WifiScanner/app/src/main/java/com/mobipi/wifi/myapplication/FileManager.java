@@ -8,6 +8,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.util.List;
@@ -30,6 +32,10 @@ public class FileManager {
 
     public String getTempPath() {
         return tempPath;
+    }
+
+    public String getDataPath(){
+        return dataPath;
     }
 
     public boolean reopenLogFile() {
@@ -252,5 +258,35 @@ public class FileManager {
             }
             return true;
         }
+    }
+
+    public void writeChannelSummaryCollectorObject(String profileName, ChannelSummaryCollector obj){
+        File path = new File(dataPath+"/"+profileName+"/ChannelSummaryCollector.bin");
+        try{
+            ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(path));
+            obj.writeObject(oos);
+            oos.flush();
+            oos.close();
+        }
+        catch(Exception e){
+            Log.d(MainActivity.LOG_TAG, "Get the excpetion when saving an object.");
+        }
+    }
+
+    public Object readChannelSummaryCollectorObject(String fullProfileFolder){
+
+        File path = new File(fullProfileFolder+"/ChannelSummaryCollector.bin");
+        if(!path.isFile())
+            return null;
+        ChannelSummaryCollector obj= new ChannelSummaryCollector();
+        try{
+
+            ObjectInputStream ois = new ObjectInputStream(new FileInputStream(path));
+            obj.readObject(ois);
+        }
+        catch(Exception e){
+            Log.d(MainActivity.LOG_TAG, "Get the excpetion when read an object.");
+        }
+        return obj;
     }
 }
