@@ -33,6 +33,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.w3c.dom.Text;
+
 import java.io.File;
 import java.io.IOException;
 import java.text.DateFormat;
@@ -72,6 +74,10 @@ public class MainActivity extends Activity {
     private TextView timeForCurrentChannelTextView;
     private TextView sampledRecordsForCurrentChannel;
     private TextView avgRSSITextView;
+    private TextView statisticsTextView;
+    private TextView reActiveTextView;
+    int reActiveCount = 0;
+
     //Editor
     private EditText macAddressEditor;
     private EditText profileNameEditor;
@@ -98,10 +104,12 @@ public class MainActivity extends Activity {
     private long startTime;
     private long totalElapsedTime;
 
+
     private FileManager fileMgr;
     private String mCurrentPhotoPath;
     private String mCurrentPhotoPathTimeStamp;
     private ChannelMgr channelMgr;
+
 
     Handler timerHandler = new Handler();
     Runnable timerRunnable = new Runnable() {
@@ -109,11 +117,16 @@ public class MainActivity extends Activity {
         public void run() {
             totalElapsedTime = SystemClock.elapsedRealtime() - startTime;
             totalTimeTextView.setText(formatElapseTime(totalElapsedTime));
+            if(mScanner.keepScanAlive()) {
+                addToLogView("RE-ACTIVATE WIFI SCANNER for Unknown bugs.", true);
+                ++reActiveCount;
+                reActiveTextView.setText(""+reActiveCount);
+            }
             timerHandler.postDelayed(this, 500);
         }
     };
 
-    private String formatElapseTime(long mill) {
+    static public String formatElapseTime(long mill) {
         int decimal = (int) (mill % 1000);
         decimal = decimal / 10;
         int seconds = (int) (mill / 1000);
@@ -239,6 +252,8 @@ public class MainActivity extends Activity {
         timeForCurrentChannelTextView.setText("0");
         sampledRecordsForCurrentChannel = (TextView) findViewById(R.id.sampledRecordsForCurrentChannel);
         avgRSSITextView = (TextView) findViewById(R.id.avgRSSITextView);
+        statisticsTextView = (TextView) findViewById(R.id.statisticsTextView);
+        reActiveTextView = (TextView) findViewById(R.id.reActiveTextView);
 
         COLOR_MAP = new int[COLOR_ARRAY.length];
         for (int i = 0; i < COLOR_MAP.length; ++i) {
@@ -304,6 +319,8 @@ public class MainActivity extends Activity {
 
 
     public void updateLogView() {
+        if(mMainFrame.getVisibility() != View.VISIBLE)
+            return;
         logView.setText(logStrBuffer.toString());
         if (bScrollable) {
             logScrollView.postDelayed(new Runnable() {
@@ -425,8 +442,6 @@ public class MainActivity extends Activity {
 
         clearTempBeforeStart();
 
-        startTimer();
-
         //check mac address is valid or not
         mScanContext = new ScanContext();
         mScanContext.macAddress = macAddressEditor.getText().toString().trim().toLowerCase();
@@ -448,6 +463,8 @@ public class MainActivity extends Activity {
         channelMgr.start();
         addToLogView("Begin WiFi scan for AP with MAC: " + mScanContext.macAddress, true);
         updateLogView();
+
+        startTimer();
     }
 
 
@@ -507,7 +524,9 @@ public class MainActivity extends Activity {
         fileMgr.copyAllFilesToProfilefolder(folderName);
         //write remarks
         fileMgr.saveToProfileFolder("remark.txt", folderName, remarksEditor.getText().toString());
-        //Move picture
+        fileMgr.saveToProfileFolder("statistic.txt", folderName, channelMgr.toString());
+        channelMgr.saveChannelSummary(folderName);
+        ChannelSummaryCollector c = channelMgr.readChannelSummary(folderName);
 
         //end save
         Toast.makeText(this, "Your records have been saved in folder: "+folderName, Toast.LENGTH_LONG).show();
@@ -563,6 +582,7 @@ public class MainActivity extends Activity {
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_home) {
             mMainFrame.setVisibility(View.VISIBLE);
+            logView.setText(logStrBuffer.toString());
             mHistoryFrame.setVisibility(View.GONE);
             bigImageView.setVisibility(View.GONE);
             statisticsFrame.setVisibility(View.GONE);
@@ -575,6 +595,7 @@ public class MainActivity extends Activity {
             return true;
         }
         else if(id == R.id.action_statistic){
+            statisticsTextView.setText(channelMgr.toString());
             statisticsFrame.setVisibility(View.VISIBLE);
             mMainFrame.setVisibility(View.GONE);
             mHistoryFrame.setVisibility(View.GONE);
@@ -610,7 +631,7 @@ public class MainActivity extends Activity {
                 break;
             }
         }
-        channelMgr.addRecord(res);
+
         if (res != null) {
             String ssid = res.SSID;
             if (ssid == null || ssid.length() == 0)
@@ -649,10 +670,15 @@ public class MainActivity extends Activity {
         } else {
             log += "-- Not found.";
         }
+        long duration = totalElapsedTime - mScanContext.currentChannelStartTime;
+        channelMgr.addRecord(res, duration);
         addToLogView(log, true);
         updateLogView();
-        timeForCurrentChannelTextView.setText(formatElapseTime(totalElapsedTime - mScanContext.currentChannelStartTime));
+        timeForCurrentChannelTextView.setText(formatElapseTime(duration));
         sampledRecordsForCurrentChannel.setText("" + mScanContext.currentChannelSamples);
+        if(statisticsFrame.getVisibility() == View.VISIBLE){
+            statisticsTextView.setText(channelMgr.toString());
+        }
     }
 
     public static int getChannelFromFreq(int freq) {
