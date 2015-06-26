@@ -268,7 +268,7 @@
 
                 <ScrollView
                     android:layout_width="match_parent"
-                    android:layout_height="100dp"
+                    android:layout_height="234dp"
                     android:id="@+id/logScrollView"
                     android:background="@android:color/white"
                     android:fillViewport="false">
@@ -400,7 +400,7 @@
 
                 <GridView
                     android:layout_width="wrap_content"
-                    android:layout_height="140dp"
+                    android:layout_height="205dp"
                     android:id="@+id/photoGrid"
                     android:background="@android:color/white"
                     android:numColumns="5"
@@ -411,41 +411,49 @@
 
             </LinearLayout>
 
-            <LinearLayout
-                android:orientation="vertical"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:id="@+id/linearLayout8">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Statistics of detected channels:"
-                    android:id="@+id/textView16" />
-
-                <ScrollView
-                    android:layout_width="match_parent"
-                    android:layout_height="162dp"
-                    android:id="@+id/scrollView2"
-                    android:background="@android:color/white">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="statistics result is here"
-                        android:id="@+id/statisticsTextView" />
-                </ScrollView>
-
-            </LinearLayout>
-
 
         </LinearLayout>
 
         <ImageView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:id="@+id/imageView"
-            android:layout_gravity="center" />
+            android:layout_height="match_parent"
+            android:id="@+id/bigImageView"
+            android:layout_gravity="center"
+            android:background="@android:color/black"
+            android:contentDescription="big view"
+            android:onClick="closeBigImageView"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:id="@+id/statisticsFrame"
+            android:background="@android:color/black"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Statistics of detected channels:"
+                android:id="@+id/textView16"
+                android:textColor="@android:color/white" />
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:id="@+id/scrollView2"
+                android:background="@android:color/white"
+                android:fillViewport="false">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="statistics result is here"
+                    android:id="@+id/statisticsTextView" />
+            </ScrollView>
+
+        </LinearLayout>
 
     </FrameLayout>
 
