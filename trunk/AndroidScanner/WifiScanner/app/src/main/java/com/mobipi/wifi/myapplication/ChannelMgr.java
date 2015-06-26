@@ -20,6 +20,10 @@ public class ChannelMgr {
     ChannelItem prevItem;
     StringBuffer strBuffer = new StringBuffer();
 
+    public List<ChannelSummaryItem> getChannelSummaryItemList(){
+        return channelSummaryList;
+    }
+
     public ChannelMgr(FileManager fileMgr) {
         channelItemList = new Vector<ChannelItem>();
         channelSummaryList = new Vector<ChannelSummaryItem>();
@@ -127,7 +131,7 @@ public class ChannelMgr {
 
     public String toString() {
         strBuffer.setLength(0);
-        if (channelSummaryList == null || channelItemList.size() == 0)
+        if (channelSummaryList == null || channelSummaryList.size() == 0)
             return "There is no data at this time";
         for (ChannelSummaryItem item : channelSummaryList) {
             strBuffer.append(item.toString()).append("\n");
@@ -137,6 +141,7 @@ public class ChannelMgr {
 
     public void saveChannelSummary(String profileName) {
         ChannelSummaryCollector obj = new ChannelSummaryCollector();
+        obj.profileName = profileName;
         obj.channelSummaryList = channelSummaryList;
         fileMgr.writeChannelSummaryCollectorObject(profileName, obj);
     }
@@ -148,13 +153,19 @@ public class ChannelMgr {
             return null;
         return (ChannelSummaryCollector) obj;
     }
+
+    public List<String> getHistoryRecords(){
+        return fileMgr.getFolderListInDataPath();
+    }
 }
 
 class ChannelSummaryCollector {
+    public String profileName;
     public List<ChannelSummaryItem> channelSummaryList;
 
     public void writeObject(ObjectOutputStream out) {
         try {
+            out.writeObject(profileName);
             out.writeInt(channelSummaryList.size());
             for (ChannelSummaryItem item : channelSummaryList) {
                 item.writeObject(out);
@@ -166,6 +177,7 @@ class ChannelSummaryCollector {
 
     public ChannelSummaryCollector readObject(ObjectInputStream ino) {
         try {
+            profileName = (String)ino.readObject();
             int size = ino.readInt();
             channelSummaryList = new Vector<ChannelSummaryItem>();
             for (int i = 0; i < size; ++i) {
@@ -173,10 +185,19 @@ class ChannelSummaryCollector {
                 item.readObject(ino);
                 channelSummaryList.add(item);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
         return this;
+    }
+
+    public String toString(){
+        StringBuffer buffer = new StringBuffer();
+        buffer.append("Profile Name: ").append(profileName).append("\n");
+        for(ChannelSummaryItem item:channelSummaryList){
+            buffer.append(item.toString()).append("\n");
+        }
+        return buffer.toString();
     }
 }
 

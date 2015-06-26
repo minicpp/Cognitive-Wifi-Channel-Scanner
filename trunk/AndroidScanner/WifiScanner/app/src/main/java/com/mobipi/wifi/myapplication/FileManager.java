@@ -13,6 +13,7 @@ import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.util.List;
+import java.util.Vector;
 
 /**
  * Created by wynter on 6/25/2015.
@@ -288,5 +289,16 @@ public class FileManager {
             Log.d(MainActivity.LOG_TAG, "Get the excpetion when read an object.");
         }
         return obj;
+    }
+
+    public List<String> getFolderListInDataPath(){
+        List<String> pathList = new Vector<String>();
+        File path = new File(dataPath);
+        if (path.isDirectory())
+            for (File child : path.listFiles())
+                if (child.isDirectory()) {
+                    pathList.add(child.getName());
+                }
+        return pathList;
     }
 }

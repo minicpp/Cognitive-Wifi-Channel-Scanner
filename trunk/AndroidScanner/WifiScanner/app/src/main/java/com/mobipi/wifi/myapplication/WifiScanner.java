@@ -84,6 +84,8 @@ public class WifiScanner {
         return false;
     }
 
+
+
     class WifiReceiver extends BroadcastReceiver {
 
         public void onReceive(Context c, Intent intent) {
