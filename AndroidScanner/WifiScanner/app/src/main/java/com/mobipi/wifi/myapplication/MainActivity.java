@@ -88,6 +88,7 @@ public class MainActivity extends Activity {
     private TextView statisticsTextView;
     private TextView reActiveTextView;
     int reActiveCount = 0;
+    int reActiveContinueCount = 0;
 
     //Editor
     private EditText macAddressEditor;
@@ -146,7 +147,14 @@ public class MainActivity extends Activity {
             if(mScanner.keepScanAlive()) {
                 addToLogView("RE-ACTIVATE WIFI SCANNER for Unknown bugs.", true);
                 ++reActiveCount;
-                reActiveTextView.setText(""+reActiveCount);
+                ++reActiveContinueCount;
+                reActiveTextView.setText(""+reActiveCount + " ("+reActiveContinueCount+")");
+                if(reActiveContinueCount > 5){
+                    mScanner.reEnableWiFiInOpenMode();
+                    reActiveContinueCount = 0;
+                    addToLogView("Force to set wifi in enable mode", true);
+                }
+                updateLogView();
             }
             timerHandler.postDelayed(this, 500);
         }
@@ -477,9 +485,7 @@ public class MainActivity extends Activity {
                 .show();
     }
 
-    private void clearTempBeforeStart(){
-        fileMgr.clearTxtFilesInTempFolder(); //remove log and records' files
-
+    public void clearPhotos(View view){
         boolean bUpdate = false;
         for (Iterator<ImageGridViewItem> iter = mImageItems.iterator(); iter.hasNext(); ) {
             ImageGridViewItem item = iter.next();
@@ -492,6 +498,10 @@ public class MainActivity extends Activity {
         if (bUpdate) {
             mImageGridViewAdapter.notifyDataSetChanged();
         }
+    }
+
+    private void clearTempBeforeStart(){
+        fileMgr.clearTxtFilesInTempFolder(); //remove log and records' files
     }
 
     public void startScan(){
@@ -707,6 +717,10 @@ public class MainActivity extends Activity {
 
 
     public void wifiScanCallback(List<ScanResult> list) {
+        if(reActiveContinueCount> 0) {
+            reActiveContinueCount = 0;
+            reActiveTextView.setText(""+reActiveCount + " ("+reActiveContinueCount+")");
+        }
         ++mScanContext.scanCounts;
         ScanResult res = null;
         String log = "[" + mScanContext.scanCounts + "] Get " + list.size() + " APs; ";

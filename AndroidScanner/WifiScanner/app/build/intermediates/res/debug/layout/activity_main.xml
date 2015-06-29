@@ -387,18 +387,28 @@
                     android:layout_height="match_parent">
 
                     <Button
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:text="Take Photos to Record Locations"
                         android:id="@+id/takePhotoButton"
+                        android:layout_weight="2"
                         android:onClick="openCamera" />
 
                     <Button
-                        android:layout_width="wrap_content"
+                        android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:text="Delete Selections"
                         android:id="@+id/deletePhotoButton"
+                        android:layout_weight="1"
                         android:onClick="deletePhoto" />
+
+                    <Button
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:text="Clear All (except locked)"
+                        android:id="@+id/clearBtn"
+                        android:layout_weight="1.5"
+                        android:onClick="clearPhotos" />
 
                 </LinearLayout>
             </LinearLayout>
@@ -479,7 +489,7 @@
             android:background="@android:color/holo_blue_light"
             android:id="@+id/chartLayout"
             android:layout_gravity="bottom"
-            android:visibility="visible">
+            android:visibility="invisible">
 
             <LinearLayout
                 android:orientation="horizontal"
@@ -502,6 +512,7 @@
                     android:id="@+id/ciBtn"
                     android:layout_weight="1"
                     android:onClick="onCiBtn" />
+
             </LinearLayout>
 
             <com.github.mikephil.charting.charts.BarChart
