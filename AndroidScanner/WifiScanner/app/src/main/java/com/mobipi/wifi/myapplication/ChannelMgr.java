@@ -125,15 +125,17 @@ public class ChannelMgr {
                 item.newDuration = deltaTime;
             } else
                 item.newDuration = deltaTime;
-            item.sumRSSI += currentItem.rssi;
-            if(item.sampleSize>0) {
-                item.meanPrev = item.mean;
-                item.mean = (double)item.sumRSSI/(double)item.sampleSize;
-            }
-            if(item.sampleSize > 1) {
-                item.sCurrent = item.sCurrent +
-                        ((double) currentItem.rssi - item.meanPrev) * ((double) currentItem.rssi - item.mean);
-                item.variation = item.sCurrent / (double) (item.sampleSize - 1);
+            if(currentItem.hit) {
+                item.sumRSSI += currentItem.rssi;
+                if (item.sampleSize > 0) {
+                    item.meanPrev = item.mean;
+                    item.mean = (double) item.sumRSSI / (double) item.sampleSize;
+                }
+                if (item.sampleSize > 1) {
+                    item.sCurrent = item.sCurrent +
+                            ((double) currentItem.rssi - item.meanPrev) * ((double) currentItem.rssi - item.mean);
+                    item.variation = item.sCurrent / (double) (item.sampleSize - 1);
+                }
             }
 
         }
@@ -203,7 +205,7 @@ public class ChannelMgr {
 
 class ChannelSummaryCollector {
     public String profileName;
-    public int version;
+    public int version=3;
     public List<ChannelSummaryItem> channelSummaryList;
 
 
@@ -259,6 +261,11 @@ class ChannelSummaryCollector {
         return this;
     }
 
+    public void update_v2_to_v3(FileManager fileMgr) {
+        update_v1_to_v2(fileMgr);
+        version = 3;
+    }
+
     public void update_v1_to_v2(FileManager fileMgr){
         version = 2;
         File bin = new File(fileMgr.getDataPath()+"/"+this.profileName+"/record.csv");
@@ -271,6 +278,11 @@ class ChannelSummaryCollector {
                 ChannelSummaryItem item = channelSummaryList.get(i);
                 item.sampleSize = 0;
                 item.sumRSSI = 0;
+
+                item.sCurrent = 0;
+                item.mean = 0;
+                item.meanPrev = 0;
+                item.variation = 0;
             }
             while ((line = br.readLine()) != null) {
                 // process the line.
@@ -316,6 +328,7 @@ class ChannelSummaryCollector {
 
     public String toString(){
         StringBuffer buffer = new StringBuffer();
+        buffer.append("(v ").append(version).append(" )");
         buffer.append("Profile Name: ").append(profileName).append("\n");
         for(ChannelSummaryItem item:channelSummaryList){
             buffer.append(item.toString()).append("\n");
