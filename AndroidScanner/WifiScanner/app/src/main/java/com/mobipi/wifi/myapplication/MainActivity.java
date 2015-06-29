@@ -37,12 +37,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.github.mikephil.charting.charts.BarChart;
+import com.github.mikephil.charting.charts.CandleStickChart;
 import com.github.mikephil.charting.components.YAxis;
 import com.github.mikephil.charting.data.BarData;
 import com.github.mikephil.charting.data.BarDataSet;
 import com.github.mikephil.charting.data.BarEntry;
-
-import org.w3c.dom.Text;
+import com.github.mikephil.charting.data.CandleData;
+import com.github.mikephil.charting.data.CandleDataSet;
+import com.github.mikephil.charting.data.CandleEntry;
 
 import java.io.File;
 import java.io.IOException;
@@ -124,11 +126,15 @@ public class MainActivity extends Activity {
     private ArrayAdapter<String> historyAdaptor;
     private TextView historyDetailsTextView;
 
-    //chart
-    private BarChart chart;
+    //barchart
+    private BarChart barchart;
+    private CandleStickChart candlechart;
     private LinearLayout chartLayout;
     private BarDraw barDraw;
+    private CandleDraw candleDraw;
     ChannelSummaryCollector lastHistoryCollector=null;
+    private Button barBtn;
+    private Button ciBtn;
 
 
     Handler timerHandler = new Handler();
@@ -302,7 +308,10 @@ public class MainActivity extends Activity {
                 lastHistoryCollector = summaryCollector;
                 String str = summaryCollector.toString();
                 historyDetailsTextView.setText(str);
-                barDraw.update(summaryCollector.channelSummaryList);
+                if(barchart.getVisibility() == View.VISIBLE)
+                    barDraw.update(summaryCollector.channelSummaryList);
+                if(candlechart.getVisibility() == View.VISIBLE)
+                    candleDraw.update(summaryCollector.channelSummaryList);
             }
         });
         historyAdaptor = new ArrayAdapter<String>(this, R.layout.simple_textview,
@@ -310,10 +319,14 @@ public class MainActivity extends Activity {
         historyListView.setAdapter(historyAdaptor);
         ChannelSummaryCollector lastHistoryCollector=null;
 
-        chart = (BarChart) findViewById(R.id.chart);
+        barchart = (BarChart) findViewById(R.id.barchart);
+        candlechart = (CandleStickChart) findViewById(R.id.candlechart);
         chartLayout = (LinearLayout)findViewById(R.id.chartLayout);
         chartLayout.setVisibility(View.GONE);
-        barDraw = new BarDraw(chart);
+        barDraw = new BarDraw(barchart);
+        candleDraw = new CandleDraw(candlechart);
+        barBtn = (Button)findViewById(R.id.barBtn);
+        ciBtn = (Button)findViewById(R.id.ciBtn);
     }
 
     private void changeBarColor(int channel) {
@@ -424,6 +437,16 @@ public class MainActivity extends Activity {
         if (bUpdate) {
             mImageGridViewAdapter.notifyDataSetChanged();
         }
+    }
+
+    public void onCiBtn(View view){
+        barchart.setVisibility(View.GONE);
+        candlechart.setVisibility(View.VISIBLE);
+    }
+
+    public void onBarBtn(View view){
+        barchart.setVisibility(View.VISIBLE);
+        candlechart.setVisibility(View.GONE);
     }
 
     private void startTimer() {
@@ -642,10 +665,14 @@ public class MainActivity extends Activity {
             historyAdaptor.addAll(channelMgr.getHistoryRecords());
             historyAdaptor.notifyDataSetChanged();
 
-            if(lastHistoryCollector == null)
+            if(lastHistoryCollector == null) {
                 barDraw.updateZero();
-            else
+                candleDraw.updateZero();
+            }
+            else {
                 barDraw.update(lastHistoryCollector.channelSummaryList);
+                candleDraw.update(lastHistoryCollector.channelSummaryList);
+            }
             return true;
         }
         else if(id == R.id.action_statistic) {
@@ -657,6 +684,7 @@ public class MainActivity extends Activity {
             chartLayout.setVisibility(View.VISIBLE);
 
             barDraw.update(channelMgr.getChannelSummaryItemList());
+            candleDraw.update(channelMgr.getChannelSummaryItemList());
             return true;
         }
 
@@ -738,7 +766,10 @@ public class MainActivity extends Activity {
             statisticsTextView.setText(channelMgr.toString());
         }
         if(statisticsFrame.getVisibility() == View.VISIBLE && chartLayout.getVisibility() == View.VISIBLE){
-            barDraw.update(channelMgr.getChannelSummaryItemList());
+            if(barchart.getVisibility() == View.VISIBLE)
+                barDraw.update(channelMgr.getChannelSummaryItemList());
+            if(candlechart.getVisibility() == View.VISIBLE)
+                candleDraw.update(channelMgr.getChannelSummaryItemList());
         }
     }
 
@@ -767,7 +798,7 @@ public class MainActivity extends Activity {
             leftAxis.setStartAtZero(false);
             chart.setDescription("Average RSSI");
             chart.setData(data);
-            //chart.notifyDataSetChanged();
+            //barchart.notifyDataSetChanged();
         }
         public void update(List<ChannelSummaryItem> sumCol){
             if(sumCol==null || sumCol.size() == 0)
@@ -789,6 +820,70 @@ public class MainActivity extends Activity {
             for(int i=0;i <11; ++i){
                 BarEntry ent= entries.get(i);
                 ent.setVal((float)0);
+                //ent.setVal((float)0.02f);
+            }
+            chart.notifyDataSetChanged();
+            chart.invalidate();
+        }
+    }
+
+    class CandleDraw{
+        ArrayList<CandleEntry> entries = new ArrayList<>();
+        ArrayList<String> labels = new ArrayList<String>();
+        CandleData data;
+        CandleDataSet dataset;
+        CandleStickChart chart;
+        public CandleDraw(CandleStickChart chart){
+            for(int i=0; i<11; ++i){
+                entries.add(new CandleEntry(i, 0f, 0f, 0f, 0f, 0f));
+                labels.add("CH "+(i+1));
+            }
+
+            dataset =  new CandleDataSet(entries, "95% Confidence Interval");
+            dataset.setShadowColor(Color.DKGRAY);
+            dataset.setDecreasingColor(Color.RED);
+            dataset.setIncreasingColor(Color.RED);
+
+            data = new CandleData(labels, dataset);
+            this.chart = chart;
+
+            YAxis leftAxis = chart.getAxisLeft();
+            leftAxis.setAxisMinValue(-100);
+            leftAxis.setAxisMaxValue(10);
+            leftAxis.setStartAtZero(false);
+            chart.setDescription("95% Confidence Interval of mean RSSI");
+            chart.setData(data);
+            //barchart.notifyDataSetChanged();
+        }
+        public void update(List<ChannelSummaryItem> sumCol){
+            if(sumCol==null || sumCol.size() == 0)
+            {
+                updateZero();
+                return;
+            }
+            for(int i=0;i <11; ++i){
+                ChannelSummaryItem item = sumCol.get(i);
+                CandleEntry ent= entries.get(i);
+                //ent.setVal((float) item.getAverageRSSI());
+                ent.setHigh((float) item.getConfidenceInterval95Upper());
+                ent.setLow((float) item.getConfidenceInterval95Lower());
+                ent.setOpen((float) item.getConfidenceInterval95Upper());
+                ent.setClose((float) item.getConfidenceInterval95Lower());
+
+                //ent.setVal((float)0.02f);
+            }
+            chart.notifyDataSetChanged();
+            chart.invalidate();
+        }
+
+        public void updateZero(){
+            for(int i=0;i <11; ++i){
+                CandleEntry ent= entries.get(i);
+                ent.setVal((float) 0);
+                ent.setHigh((float) 0);
+                ent.setLow((float) 0);
+                ent.setOpen((float) 0);
+                ent.setClose((float) 0);
                 //ent.setVal((float)0.02f);
             }
             chart.notifyDataSetChanged();

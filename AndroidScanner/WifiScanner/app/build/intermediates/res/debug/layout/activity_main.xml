@@ -480,8 +480,36 @@
             android:id="@+id/chartLayout"
             android:layout_gravity="bottom"
             android:visibility="visible">
+
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <Button
+                    style="?android:attr/buttonStyleSmall"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:text="Bar plot"
+                    android:id="@+id/barBtn"
+                    android:layout_weight="1"
+                    android:onClick="onBarBtn" />
+
+                <Button
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:text="95% CI"
+                    android:id="@+id/ciBtn"
+                    android:layout_weight="1"
+                    android:onClick="onCiBtn" />
+            </LinearLayout>
+
             <com.github.mikephil.charting.charts.BarChart
-                android:id="@+id/chart"
+                android:id="@+id/barchart"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+            <com.github.mikephil.charting.charts.CandleStickChart
+                android:id="@+id/candlechart"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent" />
         </LinearLayout>

@@ -15,20 +15,23 @@ public final class R {
         public static final int activity_vertical_margin=0x7f050001;
     }
     public static final class id {
-        public static final int action_history=0x7f08003a;
-        public static final int action_home=0x7f080038;
-        public static final int action_statistic=0x7f080039;
+        public static final int action_history=0x7f08003d;
+        public static final int action_home=0x7f08003b;
+        public static final int action_statistic=0x7f08003c;
         public static final int avgRSSITextView=0x7f080021;
+        public static final int barBtn=0x7f080033;
+        public static final int barchart=0x7f080035;
         public static final int bigImageView=0x7f08002d;
-        public static final int chart=0x7f080033;
+        public static final int candlechart=0x7f080036;
         public static final int chartLayout=0x7f080032;
+        public static final int ciBtn=0x7f080034;
         public static final int currentChannelTextView=0x7f080010;
         public static final int deletePhotoButton=0x7f08002a;
         public static final int detailsTextView=0x7f080004;
         public static final int endButton=0x7f080009;
         public static final int historyDetailsTextView=0x7f080005;
         public static final int historyFrame=0x7f080000;
-        public static final int historyItem=0x7f080037;
+        public static final int historyItem=0x7f08003a;
         public static final int historyListView=0x7f080002;
         public static final int linearLayout=0x7f080007;
         public static final int linearLayout2=0x7f08000c;
@@ -42,10 +45,10 @@ public final class R {
         public static final int macAddressEditor=0x7f080018;
         public static final int mainFrame=0x7f080006;
         public static final int pauseButton=0x7f08000a;
-        public static final int photoFrame=0x7f080034;
+        public static final int photoFrame=0x7f080037;
         public static final int photoGrid=0x7f08002c;
-        public static final int photoThumbnail=0x7f080035;
-        public static final int photoTitle=0x7f080036;
+        public static final int photoThumbnail=0x7f080038;
+        public static final int photoTitle=0x7f080039;
         public static final int profileNameEditor=0x7f080026;
         public static final int reActiveTextView=0x7f080023;
         public static final int reActiveTitle=0x7f080022;
