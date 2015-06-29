@@ -1,7 +1,11 @@
 package com.mobipi.wifi.myapplication;
 
 import android.net.wifi.ScanResult;
+import android.util.Log;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -59,6 +63,32 @@ public class ChannelMgr {
             }
     }
 
+    private void _debugStatistics(ChannelItem sitem){
+        double rssiSum = 0;
+        double mean = 0;
+        double stddev = 0;
+        ChannelItem item = null;
+        double totalHit = 0;
+        for(Iterator<ChannelItem> it = channelItemList.iterator(); it.hasNext(); ) {
+            item = it.next();
+            if(item.hit && item.channel == sitem.channel) {
+                rssiSum += item.rssi;
+                totalHit += 1;
+            }
+        }
+        if(totalHit > 0)
+            mean = rssiSum / totalHit;
+        double sqSum = 0;
+        for(Iterator<ChannelItem> it = channelItemList.iterator(); it.hasNext(); ) {
+            item = it.next();
+            if(item.hit && item.channel == sitem.channel)
+                sqSum += (item.rssi - mean)*(item.rssi-mean);
+        }
+        if(totalHit > 1)
+            stddev = Math.sqrt(sqSum/(totalHit-1.0));
+        Log.d(MainActivity.LOG_TAG, "mean: " + mean + ", stddev: " + stddev);
+    }
+
     public void addRecord(ScanResult result, long deltaTime) {
         ChannelItem currentItem = null;
         if (result == null)
@@ -68,6 +98,7 @@ public class ChannelMgr {
 
         if (prevItem != null && currentItem.channel != prevItem.channel) {
             //write all items before prevItem (include) to file
+            //_debugStatistics(prevItem);
             ChannelItem item = null;
             for (Iterator<ChannelItem> it = channelItemList.iterator(); it.hasNext(); ) {
                 item = it.next();
@@ -83,6 +114,7 @@ public class ChannelMgr {
         if (currentItem.channel >= 1) {
             int position = currentItem.channel - 1;
             ChannelSummaryItem item = channelSummaryList.get(position);
+
             if (!currentItem.hit)
                 ++item.noFoundCounts;
             else
@@ -94,6 +126,16 @@ public class ChannelMgr {
             } else
                 item.newDuration = deltaTime;
             item.sumRSSI += currentItem.rssi;
+            if(item.sampleSize>0) {
+                item.meanPrev = item.mean;
+                item.mean = (double)item.sumRSSI/(double)item.sampleSize;
+            }
+            if(item.sampleSize > 1) {
+                item.sCurrent = item.sCurrent +
+                        ((double) currentItem.rssi - item.meanPrev) * ((double) currentItem.rssi - item.mean);
+                item.variation = item.sCurrent / (double) (item.sampleSize - 1);
+            }
+
         }
         prevItem = currentItem;
     }
@@ -161,10 +203,14 @@ public class ChannelMgr {
 
 class ChannelSummaryCollector {
     public String profileName;
+    public int version;
     public List<ChannelSummaryItem> channelSummaryList;
+
+
 
     public void writeObject(ObjectOutputStream out) {
         try {
+            out.writeInt(version);
             out.writeObject(profileName);
             out.writeInt(channelSummaryList.size());
             for (ChannelSummaryItem item : channelSummaryList) {
@@ -177,6 +223,9 @@ class ChannelSummaryCollector {
 
     public ChannelSummaryCollector readObject(ObjectInputStream ino) {
         try {
+            version = 1;
+            int v = ino.readInt();
+            version = v;
             profileName = (String)ino.readObject();
             int size = ino.readInt();
             channelSummaryList = new Vector<ChannelSummaryItem>();
@@ -187,8 +236,82 @@ class ChannelSummaryCollector {
             }
         } catch (Exception e) {
             e.printStackTrace();
+            return null;
         }
         return this;
+    }
+
+    public ChannelSummaryCollector readObject_v1(ObjectInputStream ino) {
+        try {
+            version = 1;
+            profileName = (String) ino.readObject();
+            int size = ino.readInt();
+            channelSummaryList = new Vector<ChannelSummaryItem>();
+            for (int i = 0; i < size; ++i) {
+                ChannelSummaryItem item = new ChannelSummaryItem(0);
+                item.readObject_v1(ino);
+                channelSummaryList.add(item);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+        return this;
+    }
+
+    public void update_v1_to_v2(FileManager fileMgr){
+        version = 2;
+        File bin = new File(fileMgr.getDataPath()+"/"+this.profileName+"/record.csv");
+        BufferedReader br = null;
+        try {
+            br = new BufferedReader(new FileReader(bin));
+            String line;
+            int lineNumber = 0;
+            for (int i = 0; i < 11; ++i) {
+                ChannelSummaryItem item = channelSummaryList.get(i);
+                item.sampleSize = 0;
+                item.sumRSSI = 0;
+            }
+            while ((line = br.readLine()) != null) {
+                // process the line.
+                ++lineNumber;
+                if(lineNumber == 1)
+                    continue;
+                String lineArray[] = line.split(",");
+                int hit = Integer.parseInt(lineArray[0].trim());
+                int channel = Integer.parseInt(lineArray[5].trim());
+                int rssi = Integer.parseInt(lineArray[3].trim());
+                if (channel >= 1) {
+                    int position = channel - 1;
+                    ChannelSummaryItem item = channelSummaryList.get(position);
+
+                    if (hit == 1) {
+                        ++item.sampleSize;
+
+                        item.sumRSSI += rssi;
+                        if (item.sampleSize > 0) {
+                            item.meanPrev = item.mean;
+                            item.mean = (double) item.sumRSSI / (double) item.sampleSize;
+                        }
+                        if (item.sampleSize > 1) {
+                            item.sCurrent = item.sCurrent +
+                                    ((double) rssi - item.meanPrev) * ((double) rssi - item.mean);
+                            item.variation = item.sCurrent / (double) (item.sampleSize - 1);
+                        }
+                    }
+                }
+            }
+            br.close();
+        }
+        catch(Exception e){
+            try {
+                if(br != null)
+                    br.close();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
+        }
+        return;
     }
 
     public String toString(){
@@ -209,7 +332,29 @@ class ChannelSummaryItem {
     public int sumRSSI;
     public long newDuration;
     public long oldDuration;
+
+    public double sCurrent=0;
+    public double meanPrev=0;
+    public double variation=0;
+    public double mean = 0;
+
     public StringBuffer strBuffer = new StringBuffer();
+
+    public double getConfidenceInterval95Upper(){
+        return mean + 1.96*getStdDev()/Math.sqrt(sampleSize);
+    }
+
+    public double getConfidenceInterval95Lower(){
+        return mean - 1.96*getStdDev()/Math.sqrt(sampleSize);
+    }
+
+    public double getStdDev(){
+        return Math.sqrt(variation);
+    }
+
+    public double getVariation(){
+        return variation;
+    }
 
     public void writeObject(ObjectOutputStream out) {
         try {
@@ -221,12 +366,33 @@ class ChannelSummaryItem {
             out.writeLong(newDuration);
             out.writeLong(oldDuration);
 
+            out.writeDouble(variation);
+            out.writeDouble(mean);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     public ChannelSummaryItem readObject(ObjectInputStream ino) {
+        try {
+            channel = ino.readInt();
+            sampleSize = ino.readInt();
+            noFoundCounts = ino.readInt();
+            round = ino.readInt();
+            sumRSSI = ino.readInt();
+            newDuration = ino.readLong();
+            oldDuration = ino.readLong();
+
+            variation = ino.readDouble();
+            mean = ino.readDouble();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return this;
+    }
+
+    public ChannelSummaryItem readObject_v1(ObjectInputStream ino) {
         try {
             channel = ino.readInt();
             sampleSize = ino.readInt();
@@ -250,10 +416,7 @@ class ChannelSummaryItem {
     }
 
     public double getAverageRSSI() {
-        if (sampleSize == 0)
-            return 0;
-        double res = (double) sumRSSI / (double) sampleSize;
-        return res;
+        return mean;
     }
 
     public double getDetectRatio() {
@@ -270,6 +433,7 @@ class ChannelSummaryItem {
     public String toString() {
         strBuffer.setLength(0);
         strBuffer.append("Channel ").append(channel).append(":\t Average RSSI: ").append(String.format("%.2f", getAverageRSSI()))
+                .append(String.format(", Standard Deviation: %.2f", getStdDev()))
                 .append("\n\t\tSample size: ").append(sampleSize).append(", Missed: ").append(noFoundCounts)
                 .append(", Detected ratio:").append(String.format("%.2f", getDetectRatio() * 100)).append("%")
                 .append("\n\t\tScan round: ").append(round)

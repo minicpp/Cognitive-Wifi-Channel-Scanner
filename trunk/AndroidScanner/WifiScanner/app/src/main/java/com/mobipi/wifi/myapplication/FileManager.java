@@ -284,6 +284,17 @@ public class FileManager {
 
             ObjectInputStream ois = new ObjectInputStream(new FileInputStream(path));
             obj.readObject(ois);
+            if(obj.version == 1){
+                ois.close();
+                ois = new ObjectInputStream(new FileInputStream(path));
+                obj.readObject_v1(ois);
+                obj.update_v1_to_v2(this);
+                ois.close();
+                writeChannelSummaryCollectorObject(obj.profileName, obj); //update
+            }
+            else {
+                ois.close();
+            }
         }
         catch(Exception e){
             Log.d(MainActivity.LOG_TAG, "Get the excpetion when read an object.");
