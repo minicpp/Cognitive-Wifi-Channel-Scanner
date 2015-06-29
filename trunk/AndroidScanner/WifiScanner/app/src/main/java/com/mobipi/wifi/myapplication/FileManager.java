@@ -290,7 +290,13 @@ public class FileManager {
                 obj.readObject_v1(ois);
                 obj.update_v1_to_v2(this);
                 ois.close();
+                //writeChannelSummaryCollectorObject(obj.profileName, obj); //update
+                //saveToProfileFolder("statistic.txt", obj.profileName, obj.toString());
+            }
+            if(obj.version >= 2){
+                obj.update_v2_to_v3(this);
                 writeChannelSummaryCollectorObject(obj.profileName, obj); //update
+                saveToProfileFolder("statistic.txt", obj.profileName, obj.toString());
             }
             else {
                 ois.close();
