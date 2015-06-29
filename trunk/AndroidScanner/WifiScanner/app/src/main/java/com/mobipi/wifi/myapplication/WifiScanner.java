@@ -43,6 +43,11 @@ public class WifiScanner {
         mContext.unregisterReceiver(mWifiStateChange);
     }
 
+    public void reEnableWiFiInOpenMode(){
+       // mWifiMgr.setWifiEnabled(false);
+        mWifiMgr.setWifiEnabled(true);
+    }
+
     public boolean isRun(){
         return mRunning;
     }
