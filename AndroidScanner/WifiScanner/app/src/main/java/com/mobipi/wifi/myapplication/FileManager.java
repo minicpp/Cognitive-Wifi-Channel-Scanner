@@ -284,7 +284,7 @@ public class FileManager {
 
             ObjectInputStream ois = new ObjectInputStream(new FileInputStream(path));
             obj.readObject(ois);
-            if(obj.version == 1){
+            if(obj.version <= 1){
                 ois.close();
                 ois = new ObjectInputStream(new FileInputStream(path));
                 obj.readObject_v1(ois);
